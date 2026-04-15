@@ -59,13 +59,13 @@ python cubazoid_solver.py --list-cases --include-large
 跑单个案例（MRV）：
 
 ```powershell
-python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --no-show --backend mrv
+python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --backend mrv
 ```
 
 跑单个案例（Exact/DLX）：
 
 ```powershell
-python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --no-show --backend exact
+python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --backend exact
 ```
 
 批量运行（无窗口）：
