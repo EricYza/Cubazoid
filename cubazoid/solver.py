@@ -1,4 +1,5 @@
 import math
+import warnings
 from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -13,18 +14,50 @@ class CubazoidSolver:
         if not shape_tensors:
             raise ValueError("Input shape list is empty.")
 
+        self.infeasible_reason: Optional[str] = None
         self.original_tensors = [np.asarray(t) for t in shape_tensors]
         self.pieces = [tensor_to_coords(t) for t in self.original_tensors]
         self.volumes = [len(p) for p in self.pieces]
 
+        invalid_volume_piece_ids = [i for i, vol in enumerate(self.volumes) if vol < 3 or vol > 5]
+        if invalid_volume_piece_ids:
+            ids_str = ", ".join(str(i) for i in invalid_volume_piece_ids)
+            self.infeasible_reason = (
+                f"Piece cube counts must be within [3, 5], but invalid pieces are: {ids_str}."
+            )
+
+        disconnected_piece_ids = [i for i, piece in enumerate(self.pieces) if not self._is_piece_connected(piece)]
+        if disconnected_piece_ids:
+            ids_str = ", ".join(str(i) for i in disconnected_piece_ids)
+            warnings.warn(
+                "Detected non-connected piece(s): "
+                f"{ids_str}. Solver will still treat each tensor as one rigid component.",
+                UserWarning,
+            )
+
         total_volume = sum(self.volumes)
         n = round(total_volume ** (1 / 3))
-        if n ** 3 != total_volume:
-            raise ValueError(
-                f"Total volume {total_volume} is not a perfect cube, so no solution exists."
-            )
+        if n < 1 or n ** 3 != total_volume:
+            reason = f"Total volume {total_volume} is not a perfect cube."
+            if self.infeasible_reason:
+                self.infeasible_reason = f"{self.infeasible_reason} {reason}"
+            else:
+                self.infeasible_reason = reason
         self.n = n
         self.total_volume = total_volume
+
+        if self.infeasible_reason:
+            self.orientations = {}
+            self.piece_class_id = []
+            self.num_piece_classes = 0
+            self.piece_placements = {}
+            self.piece_placement_masks = {}
+            self.cover_index = {}
+            self.unplaceable_on_empty = []
+            self.order = []
+            self.enable_memo = enable_memo
+            self.failed_states = set()
+            return
 
         self.orientations: Dict[int, List[Tuple[Coord, ...]]] = {
             i: unique_orientations(piece) for i, piece in enumerate(self.pieces)
@@ -34,6 +67,7 @@ class CubazoidSolver:
 
         (
             self.piece_placements,
+            self.piece_placement_masks,
             self.cover_index,
             self.unplaceable_on_empty,
         ) = self._precompute_placements()
@@ -44,16 +78,49 @@ class CubazoidSolver:
         )
 
         self.enable_memo = enable_memo
-        self.failed_states: Set[Tuple[bytes, Tuple[int, ...]]] = set()
+        self.failed_states: Set[Tuple[int, Tuple[int, ...]]] = set()
+
+    @staticmethod
+    def _is_piece_connected(piece: Tuple[Coord, ...]) -> bool:
+        if not piece:
+            return False
+
+        piece_set = set(piece)
+        q = deque([piece[0]])
+        visited = {piece[0]}
+        directions = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
+
+        while q:
+            x, y, z = q.popleft()
+            for dx, dy, dz in directions:
+                nxt = (x + dx, y + dy, z + dz)
+                if nxt in piece_set and nxt not in visited:
+                    visited.add(nxt)
+                    q.append(nxt)
+
+        return len(visited) == len(piece_set)
+
+    def _cell_to_bit_index(self, cell: Coord) -> int:
+        x, y, z = cell
+        return x * self.n * self.n + y * self.n + z
+
+    def _cells_to_mask(self, cells: Tuple[Coord, ...]) -> int:
+        mask = 0
+        for cell in cells:
+            mask |= 1 << self._cell_to_bit_index(cell)
+        return mask
 
     def solve(self) -> Optional[List[Placement]]:
+        if self.infeasible_reason:
+            return None
         if self.unplaceable_on_empty:
             return None
         occupied = np.full((self.n, self.n, self.n), fill_value=-1, dtype=int)
+        occupied_mask = 0
         remaining = tuple(self.order)
-        if not self._forward_check(occupied, remaining):
+        if not self._forward_check(occupied_mask, remaining):
             return None
-        success, placements = self._backtrack(occupied, remaining, [])
+        success, placements = self._backtrack(occupied, occupied_mask, remaining, [])
         return placements if success else None
 
     def _build_piece_classes(self) -> List[int]:
@@ -71,10 +138,12 @@ class CubazoidSolver:
         self,
     ) -> Tuple[
         Dict[int, List[PlacementOption]],
+        Dict[int, List[int]],
         Dict[int, Dict[Coord, List[int]]],
         List[int],
     ]:
         piece_placements: Dict[int, List[PlacementOption]] = {}
+        piece_placement_masks: Dict[int, List[int]] = {}
         cover_index: Dict[int, Dict[Coord, List[int]]] = {}
         unplaceable_on_empty = []
 
@@ -99,6 +168,7 @@ class CubazoidSolver:
                 for cells, oid in sorted(seen_cells.items())
             ]
             piece_placements[piece_id] = placements
+            piece_placement_masks[piece_id] = [self._cells_to_mask(option.cells) for option in placements]
 
             cov: Dict[Coord, List[int]] = {}
             for idx, option in enumerate(placements):
@@ -109,13 +179,11 @@ class CubazoidSolver:
             if not placements:
                 unplaceable_on_empty.append(piece_id)
 
-        return piece_placements, cover_index, unplaceable_on_empty
+        return piece_placements, piece_placement_masks, cover_index, unplaceable_on_empty
 
-    def _can_place(self, occupied: np.ndarray, cells: Tuple[Coord, ...]) -> bool:
-        for x, y, z in cells:
-            if occupied[x, y, z] != -1:
-                return False
-        return True
+    @staticmethod
+    def _can_place_mask(occupied_mask: int, placement_mask: int) -> bool:
+        return (occupied_mask & placement_mask) == 0
 
     def _place(self, occupied: np.ndarray, piece_id: int, cells: Tuple[Coord, ...]) -> None:
         for x, y, z in cells:
@@ -175,34 +243,33 @@ class CubazoidSolver:
             counts[self.piece_class_id[piece_id]] += 1
         return tuple(counts)
 
-    def _state_key(self, occupied: np.ndarray, remaining_piece_ids: Tuple[int, ...]) -> Tuple[bytes, Tuple[int, ...]]:
-        occ_mask = (occupied != -1).astype(np.uint8).tobytes()
-        return occ_mask, self._remaining_class_counts(remaining_piece_ids)
+    def _state_key(self, occupied_mask: int, remaining_piece_ids: Tuple[int, ...]) -> Tuple[int, Tuple[int, ...]]:
+        return occupied_mask, self._remaining_class_counts(remaining_piece_ids)
 
-    def _has_any_valid_placement(self, occupied: np.ndarray, piece_id: int) -> bool:
-        for option in self.piece_placements[piece_id]:
-            if self._can_place(occupied, option.cells):
+    def _has_any_valid_placement(self, occupied_mask: int, piece_id: int) -> bool:
+        for option_idx, _option in enumerate(self.piece_placements[piece_id]):
+            if self._can_place_mask(occupied_mask, self.piece_placement_masks[piece_id][option_idx]):
                 return True
         return False
 
-    def _forward_check(self, occupied: np.ndarray, remaining_piece_ids: Tuple[int, ...]) -> bool:
+    def _forward_check(self, occupied_mask: int, remaining_piece_ids: Tuple[int, ...]) -> bool:
         seen_classes = set()
         for piece_id in remaining_piece_ids:
             class_id = self.piece_class_id[piece_id]
             if class_id in seen_classes:
                 continue
             seen_classes.add(class_id)
-            if not self._has_any_valid_placement(occupied, piece_id):
+            if not self._has_any_valid_placement(occupied_mask, piece_id):
                 return False
         return True
 
     def _moves_covering_cell(
         self,
-        occupied: np.ndarray,
+        occupied_mask: int,
         remaining_piece_ids: Tuple[int, ...],
         cell: Coord,
-    ) -> List[Tuple[int, int, PlacementOption]]:
-        moves: List[Tuple[int, int, PlacementOption]] = []
+    ) -> List[Tuple[int, int, int]]:
+        moves: List[Tuple[int, int, int]] = []
         seen_classes = set()
 
         for idx_in_tuple, piece_id in enumerate(remaining_piece_ids):
@@ -212,28 +279,28 @@ class CubazoidSolver:
             seen_classes.add(class_id)
 
             for placement_idx in self.cover_index[piece_id].get(cell, []):
-                option = self.piece_placements[piece_id][placement_idx]
-                if self._can_place(occupied, option.cells):
-                    moves.append((idx_in_tuple, piece_id, option))
+                if self._can_place_mask(occupied_mask, self.piece_placement_masks[piece_id][placement_idx]):
+                    moves.append((idx_in_tuple, piece_id, placement_idx))
 
         return moves
 
     def _select_target_and_moves(
         self,
         occupied: np.ndarray,
+        occupied_mask: int,
         remaining_piece_ids: Tuple[int, ...],
-    ) -> Tuple[Optional[Coord], List[Tuple[int, int, PlacementOption]]]:
+    ) -> Tuple[Optional[Coord], List[Tuple[int, int, int]]]:
         empty_locs = np.argwhere(occupied == -1)
         if len(empty_locs) == 0:
             return None, []
 
         best_cell: Optional[Coord] = None
-        best_moves: List[Tuple[int, int, PlacementOption]] = []
+        best_moves: List[Tuple[int, int, int]] = []
         best_count = float("inf")
 
         for loc in empty_locs:
             cell = (int(loc[0]), int(loc[1]), int(loc[2]))
-            moves = self._moves_covering_cell(occupied, remaining_piece_ids, cell)
+            moves = self._moves_covering_cell(occupied_mask, remaining_piece_ids, cell)
             move_count = len(moves)
             if move_count == 0:
                 return cell, []
@@ -249,6 +316,7 @@ class CubazoidSolver:
     def _backtrack(
         self,
         occupied: np.ndarray,
+        occupied_mask: int,
         remaining_piece_ids: Tuple[int, ...],
         placements: List[Placement],
     ) -> Tuple[bool, Optional[List[Placement]]]:
@@ -258,23 +326,28 @@ class CubazoidSolver:
             return False, None
 
         if self.enable_memo:
-            key = self._state_key(occupied, remaining_piece_ids)
+            key = self._state_key(occupied_mask, remaining_piece_ids)
             if key in self.failed_states:
                 return False, None
 
-        _target, moves = self._select_target_and_moves(occupied, remaining_piece_ids)
+        _target, moves = self._select_target_and_moves(occupied, occupied_mask, remaining_piece_ids)
         if _target is None:
             return True, placements.copy()
         if not moves:
             if self.enable_memo:
-                self.failed_states.add(self._state_key(occupied, remaining_piece_ids))
+                self.failed_states.add(self._state_key(occupied_mask, remaining_piece_ids))
             return False, None
 
-        for idx_in_tuple, piece_id, option in moves:
+        for idx_in_tuple, piece_id, placement_idx in moves:
+            option = self.piece_placements[piece_id][placement_idx]
+            option_mask = self.piece_placement_masks[piece_id][placement_idx]
             next_remaining = remaining_piece_ids[:idx_in_tuple] + remaining_piece_ids[idx_in_tuple + 1 :]
+            next_occupied_mask = occupied_mask | option_mask
             self._place(occupied, piece_id, option.cells)
 
-            if not self._prune_holes(occupied, next_remaining) and self._forward_check(occupied, next_remaining):
+            if not self._prune_holes(occupied, next_remaining) and self._forward_check(
+                next_occupied_mask, next_remaining
+            ):
                 placements.append(
                     Placement(
                         piece_id=piece_id,
@@ -282,7 +355,7 @@ class CubazoidSolver:
                         cells=option.cells,
                     )
                 )
-                ok, result = self._backtrack(occupied, next_remaining, placements)
+                ok, result = self._backtrack(occupied, next_occupied_mask, next_remaining, placements)
                 if ok:
                     return True, result
                 placements.pop()
@@ -290,7 +363,7 @@ class CubazoidSolver:
             self._unplace(occupied, option.cells)
 
         if self.enable_memo:
-            self.failed_states.add(self._state_key(occupied, remaining_piece_ids))
+            self.failed_states.add(self._state_key(occupied_mask, remaining_piece_ids))
         return False, None
 
 
@@ -324,6 +397,8 @@ class ExactCoverCubazoidSolver(CubazoidSolver):
     """
 
     def solve(self) -> Optional[List[Placement]]:
+        if self.infeasible_reason:
+            return None
         if self.unplaceable_on_empty:
             return None
         return self._solve_with_dlx()

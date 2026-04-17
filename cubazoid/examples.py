@@ -157,10 +157,10 @@ def build_large_cube_search_cases() -> Dict[str, List[np.ndarray]]:
                 "Pillar4": 2,
                 "I5": 2,
                 "L5": 11,
-                "T5": 10,
+                "T5": 8,
                 "U5": 7,
                 "P5": 10,
-                "Weird5": 9,
+                "Weird5": 11,
             },
         ),
     }

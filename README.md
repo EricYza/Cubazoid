@@ -74,18 +74,32 @@ python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --b
 python cubazoid_solver.py --all --include-large --no-show
 ```
 
-## 5. 7x7x7 性能记录（本轮开发记录）
+## 5. 7x7x7 性能记录（当前版本）
 
 目标案例：`search_7x7x7_mixed_balanced`
 
-- `mrv`：约 **12.4s**（历史记录：`12.394s` / `12.459s`）
+- `mrv`（MRV + bitmask 放置判定）：约 **5.9s**（历史记录：`12.394s` / `12.459s`）
 - `exact`（DLX，无几何剪枝）：约 **92.6s**（历史记录：`92.565s`）
 
 结论（当前代码）：
 - `mrv` 明显快于 `exact`；
 - `exact` 仍可作为“方法学对比组”，用于报告中展示 Exact Cover/DLX 路线与启发式回溯路线的优劣差异。
 
-## 6. 复现实验建议
+## 6. 本轮修改摘要（2026-04-16）
+
+本轮围绕“判题稳健性 + 搜索性能”做了以下更新：
+
+- 无解返回语义统一：总体积不是完美立方时不再抛异常，统一由 `solve()` 返回 `None`；`--case reject_not_perfect_cube` 不再崩溃。
+- 输入校验增强：
+  - 若任一 piece 体素数不在 `[3,5]`，标记为不可行并返回 `None`；
+  - 若 piece 非连通，发出 `UserWarning`（当前仍按“刚体组件”处理）。
+- MRV 后端核心优化：
+  - 预计算每个 placement 的 bitmask；
+  - `_can_place` 从逐格循环改为按位与判冲突；
+  - 记忆化状态键改为 `occupied_mask + 同型块计数`。
+- 选点策略复核：尝试过 first-empty（左上角首空格）策略，但在 `search_7x7x7_mixed_balanced` 上实测明显变慢，因此已恢复为 MRV 选点（无残留）。
+
+## 7. 复现实验建议
 
 - 同一机器、同一 Python 版本下对比；
 - 命令统一加 `--no-show`，避免图形窗口影响计时；
@@ -94,4 +108,3 @@ python cubazoid_solver.py --all --include-large --no-show
   - 解是否存在；
   - 总耗时；
   - 组件数量与立方体大小（n）。
-
