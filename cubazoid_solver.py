@@ -86,6 +86,12 @@ if __name__ == "__main__":
         default="mrv",
         help="Solver backend: mrv (current heuristic backtracking) or exact (Algorithm X / DLX style).",
     )
+    parser.add_argument(
+        "--timeout-sec",
+        type=float,
+        default=120.0,
+        help="Per-case timeout in seconds. Set <= 0 to disable timeout.",
+    )
     args = parser.parse_args()
 
     tests = build_test_cases(include_large_search_cases=args.include_large)
@@ -106,6 +112,7 @@ if __name__ == "__main__":
                     interval=args.interval,
                     show=not args.no_show,
                     backend=args.backend,
+                    timeout_sec=args.timeout_sec,
                 )
             except ValueError as err:
                 print(f"Rejected: {err}")
@@ -122,4 +129,5 @@ if __name__ == "__main__":
             interval=args.interval,
             show=not args.no_show,
             backend=args.backend,
+            timeout_sec=args.timeout_sec,
         )

@@ -13,6 +13,7 @@ def solve_and_visualize(
     interval: int = 900,
     show: bool = True,
     backend: str = "mrv",
+    timeout_sec: Optional[float] = None,
 ) -> Optional[List[Placement]]:
     if backend == "mrv":
         solver = CubazoidSolver(shape_tensors)
@@ -21,8 +22,13 @@ def solve_and_visualize(
     else:
         raise ValueError(f"Unknown backend '{backend}'. Supported: mrv, exact")
 
-    placements = solver.solve()
+    placements = solver.solve(max_seconds=timeout_sec)
     if placements is None:
+        if solver.timed_out:
+            if timeout_sec is None or timeout_sec <= 0:
+                print("Search timed out.")
+            else:
+                print(f"Search timed out after {timeout_sec:.3f} seconds.")
         print("No cube-forming configuration exists.")
         return None
 

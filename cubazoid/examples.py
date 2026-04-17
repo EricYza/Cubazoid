@@ -221,6 +221,18 @@ def build_test_cases(include_large_search_cases: bool = False) -> Dict[str, List
             p["L3"].copy(),
         ],
         "reject_not_perfect_cube": [p["T4"].copy() for _ in range(6)],
+        # Volume is 27 (3x3x3), but one piece is disconnected and should be rejected by strict input checks.
+        "reject_disconnected_piece_3x3x3": [
+            coords_to_tensor([(0, 0, 0), (0, 1, 0), (2, 0, 0)]),
+            p["I3"].copy(),
+            p["I3"].copy(),
+            p["I3"].copy(),
+            p["I3"].copy(),
+            p["I3"].copy(),
+            p["I3"].copy(),
+            p["I3"].copy(),
+            p["I3"].copy(),
+        ],
     }
     if include_large_search_cases:
         cases.update(build_large_cube_search_cases())

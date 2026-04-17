@@ -47,6 +47,7 @@ final project/
 - `--no-show`：关闭可视化窗口
 - `--interval <ms>`：动画帧间隔（毫秒）
 - `--backend {mrv,exact}`：选择求解后端（默认 `mrv`）
+- `--timeout-sec <float>`：单个 case 的超时秒数（默认 `120`；`<=0` 表示禁用超时）
 
 ## 4. 常用命令
 
@@ -74,6 +75,12 @@ python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --b
 python cubazoid_solver.py --all --include-large --no-show
 ```
 
+批量运行（建议显式超时，避免病态 case 卡死）：
+
+```powershell
+python cubazoid_solver.py --all --include-large --no-show --timeout-sec 120
+```
+
 ## 5. 7x7x7 性能记录（当前版本）
 
 目标案例：`search_7x7x7_mixed_balanced`
@@ -92,12 +99,13 @@ python cubazoid_solver.py --all --include-large --no-show
 - 无解返回语义统一：总体积不是完美立方时不再抛异常，统一由 `solve()` 返回 `None`；`--case reject_not_perfect_cube` 不再崩溃。
 - 输入校验增强：
   - 若任一 piece 体素数不在 `[3,5]`，标记为不可行并返回 `None`；
-  - 若 piece 非连通，发出 `UserWarning`（当前仍按“刚体组件”处理）。
+  - 若 piece 非连通，按不合法输入处理并返回 `None`（默认严格模式）。
 - MRV 后端核心优化：
   - 预计算每个 placement 的 bitmask；
   - `_can_place` 从逐格循环改为按位与判冲突；
   - 记忆化状态键改为 `occupied_mask + 同型块计数`。
 - 选点策略复核：尝试过 first-empty（左上角首空格）策略，但在 `search_7x7x7_mixed_balanced` 上实测明显变慢，因此已恢复为 MRV 选点（无残留）。
+- 超时机制：新增 per-case 超时控制（默认 `120s`），超时后该 case 返回无解并继续后续流程，避免整批任务被单个病态实例拖死。
 
 ## 7. 复现实验建议
 

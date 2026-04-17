@@ -1,4 +1,5 @@
 import math
+import time
 import warnings
 from collections import deque
 from typing import Dict, List, Optional, Set, Tuple
@@ -10,7 +11,12 @@ from .types import Coord, Placement, PlacementOption
 
 
 class CubazoidSolver:
-    def __init__(self, shape_tensors: List[np.ndarray], enable_memo: bool = True):
+    def __init__(
+        self,
+        shape_tensors: List[np.ndarray],
+        enable_memo: bool = True,
+        allow_disconnected: bool = False,
+    ):
         if not shape_tensors:
             raise ValueError("Input shape list is empty.")
 
@@ -29,11 +35,18 @@ class CubazoidSolver:
         disconnected_piece_ids = [i for i, piece in enumerate(self.pieces) if not self._is_piece_connected(piece)]
         if disconnected_piece_ids:
             ids_str = ", ".join(str(i) for i in disconnected_piece_ids)
-            warnings.warn(
-                "Detected non-connected piece(s): "
-                f"{ids_str}. Solver will still treat each tensor as one rigid component.",
-                UserWarning,
-            )
+            if allow_disconnected:
+                warnings.warn(
+                    "Detected non-connected piece(s): "
+                    f"{ids_str}. Solver will still treat each tensor as one rigid component.",
+                    UserWarning,
+                )
+            else:
+                reason = f"Disconnected pieces are not allowed, invalid pieces are: {ids_str}."
+                if self.infeasible_reason:
+                    self.infeasible_reason = f"{self.infeasible_reason} {reason}"
+                else:
+                    self.infeasible_reason = reason
 
         total_volume = sum(self.volumes)
         n = round(total_volume ** (1 / 3))
@@ -57,6 +70,8 @@ class CubazoidSolver:
             self.order = []
             self.enable_memo = enable_memo
             self.failed_states = set()
+            self.deadline = None
+            self.timed_out = False
             return
 
         self.orientations: Dict[int, List[Tuple[Coord, ...]]] = {
@@ -79,6 +94,8 @@ class CubazoidSolver:
 
         self.enable_memo = enable_memo
         self.failed_states: Set[Tuple[int, Tuple[int, ...]]] = set()
+        self.deadline: Optional[float] = None
+        self.timed_out = False
 
     @staticmethod
     def _is_piece_connected(piece: Tuple[Coord, ...]) -> bool:
@@ -110,7 +127,23 @@ class CubazoidSolver:
             mask |= 1 << self._cell_to_bit_index(cell)
         return mask
 
-    def solve(self) -> Optional[List[Placement]]:
+    def _start_timer(self, max_seconds: Optional[float]) -> None:
+        self.timed_out = False
+        if max_seconds is None or max_seconds <= 0:
+            self.deadline = None
+            return
+        self.deadline = time.monotonic() + max_seconds
+
+    def _check_timeout(self) -> bool:
+        if self.deadline is None:
+            return False
+        if time.monotonic() < self.deadline:
+            return False
+        self.timed_out = True
+        return True
+
+    def solve(self, max_seconds: Optional[float] = None) -> Optional[List[Placement]]:
+        self._start_timer(max_seconds)
         if self.infeasible_reason:
             return None
         if self.unplaceable_on_empty:
@@ -253,6 +286,8 @@ class CubazoidSolver:
         return False
 
     def _forward_check(self, occupied_mask: int, remaining_piece_ids: Tuple[int, ...]) -> bool:
+        if self._check_timeout():
+            return False
         seen_classes = set()
         for piece_id in remaining_piece_ids:
             class_id = self.piece_class_id[piece_id]
@@ -320,6 +355,8 @@ class CubazoidSolver:
         remaining_piece_ids: Tuple[int, ...],
         placements: List[Placement],
     ) -> Tuple[bool, Optional[List[Placement]]]:
+        if self._check_timeout():
+            return False, None
         if not remaining_piece_ids:
             if np.all(occupied != -1):
                 return True, placements.copy()
@@ -339,6 +376,8 @@ class CubazoidSolver:
             return False, None
 
         for idx_in_tuple, piece_id, placement_idx in moves:
+            if self._check_timeout():
+                return False, None
             option = self.piece_placements[piece_id][placement_idx]
             option_mask = self.piece_placement_masks[piece_id][placement_idx]
             next_remaining = remaining_piece_ids[:idx_in_tuple] + remaining_piece_ids[idx_in_tuple + 1 :]
@@ -396,7 +435,8 @@ class ExactCoverCubazoidSolver(CubazoidSolver):
     Additional piece usage constraints are tracked as per-shape-class remaining counts.
     """
 
-    def solve(self) -> Optional[List[Placement]]:
+    def solve(self, max_seconds: Optional[float] = None) -> Optional[List[Placement]]:
+        self._start_timer(max_seconds)
         if self.infeasible_reason:
             return None
         if self.unplaceable_on_empty:
@@ -571,6 +611,8 @@ class ExactCoverCubazoidSolver(CubazoidSolver):
         chosen_row_ids: List[int] = []
 
         def search(depth: int) -> bool:
+            if self._check_timeout():
+                return False
             target_col = self._choose_column(root)
             if target_col is None:
                 return all(v == 0 for v in remaining_class_counts)
@@ -579,6 +621,8 @@ class ExactCoverCubazoidSolver(CubazoidSolver):
 
             row = target_col.down
             while row is not target_col:
+                if self._check_timeout():
+                    return False
                 row_id = row.row_id
                 class_id = row_class_ids[row_id]
                 if remaining_class_counts[class_id] > 0:
