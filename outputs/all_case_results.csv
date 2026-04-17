@@ -1,0 +1,15 @@
+case,backend,n,pieces,status,runtime_sec,timed_out,infeasible_reason,gif_path,piece_count_ok,piece_used_once_ok,no_overlap_ok,full_fill_ok
+easy_3x3x3_all_I3,mrv,3,9,solved,0.0008,False,,outputs\all_case_gifs\easy_3x3x3_all_I3_mrv.gif,True,True,True,True
+easy_2x2x2_two_4blocks,mrv,2,2,solved,0.0001,False,,outputs\all_case_gifs\easy_2x2x2_two_4blocks_mrv.gif,True,True,True,True
+medium_3x3x3_mixed,mrv,3,8,solved,0.0017,False,,outputs\all_case_gifs\medium_3x3x3_mixed_mrv.gif,True,True,True,True
+hard_4x4x4_all_I4,mrv,4,16,solved,0.0024,False,,outputs\all_case_gifs\hard_4x4x4_all_I4_mrv.gif,True,True,True,True
+success_mixed_3_4_5,mrv,3,6,solved,0.0021,False,,outputs\all_case_gifs\success_mixed_3_4_5_mrv.gif,True,True,True,True
+failure_mixed_3_4_5,mrv,3,6,unsolved,0.0,False,,,False,False,False,False
+hard_4x4x4_mixed_4blocks,mrv,4,16,solved,0.0153,False,,outputs\all_case_gifs\hard_4x4x4_mixed_4blocks_mrv.gif,True,True,True,True
+hard_4x4x4_mixed_3_5,mrv,4,16,unsolved,0.0,False,,,False,False,False,False
+reject_not_perfect_cube,mrv,3,6,invalid_input,0.0,False,Total volume 24 is not a perfect cube.,,False,False,False,False
+reject_disconnected_piece_3x3x3,mrv,3,9,invalid_input,0.0,False,"Disconnected pieces are not allowed, invalid pieces are: 0.",,False,False,False,False
+search_5x5x5_mixed_balanced_a,mrv,5,28,solved,0.5659,False,,outputs\all_case_gifs\search_5x5x5_mixed_balanced_a_mrv.gif,True,True,True,True
+search_5x5x5_mixed_balanced_b,mrv,5,27,solved,0.0794,False,,outputs\all_case_gifs\search_5x5x5_mixed_balanced_b_mrv.gif,True,True,True,True
+search_6x6x6_mixed_balanced,mrv,6,51,solved,8.83,False,,outputs\all_case_gifs\search_6x6x6_mixed_balanced_mrv.gif,True,True,True,True
+search_7x7x7_mixed_balanced,mrv,7,75,solved,3.5722,False,,outputs\all_case_gifs\search_7x7x7_mixed_balanced_mrv.gif,True,True,True,True
