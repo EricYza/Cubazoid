@@ -1,0 +1,166 @@
+\documentclass[11pt]{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fontspec}
+\usepackage[shortlabels]{enumitem}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{matlab-prettifier}
+\usepackage{listings}
+\usepackage{minted}
+\usepackage[margin=0.80in]{geometry} 
+\usepackage{graphicx}
+\usepackage{subcaption}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    showstringspaces=false
+}
+
+\definecolor{commentgreen}{RGB}{0,128,0}
+\definecolor{codegreen}{RGB}{9,134,88}
+\definecolor{codepurple}{RGB}{175,0,219}
+\definecolor{codedarkblue}{RGB}{0,16,128}
+\definecolor{codelightblue}{RGB}{38,127,153}
+\definecolor{codebrown}{RGB}{163,21,21}
+\definecolor{backcolor}{rgb}{0.95,0.95,0.92}
+\lstdefinestyle{Pythonstyle}{
+    language=Python, 
+    backgroundcolor=\color{backcolor},
+    commentstyle=\color{commentgreen},
+    keywordstyle=\color{codepurple},
+    numberstyle=\tiny\color{codegreen},
+    stringstyle=\color{codebrown},
+    identifierstyle=\color{codedarkblue},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\usepackage[backend=biber,style=phys]{biblatex}
+\newcommand{\mingzhe}[1]{\textcolor{blue}{\textbf{MH:~}\textbf{#1}}}
+\newcommand{\Ziang}[1]{\textcolor{green}{\textbf{ZA:~}\textbf{#1}}}
+
+\addbibresource{reference.bib}
+
+\setmainfont{Times New Roman}
+\setmonofont[Scale=0.85]{Fira Code}
+
+\renewcommand{\arraystretch}{1.5}
+
+\newcommand{\nm}{\,\mathrm{nm}}
+\newcommand{\um}{\,\mathrm{\mu m}}
+\newcommand{\m}{\,\mathrm{m}}
+\newcommand{\K}{\mathcal{K}}
+
+
+
+\pagestyle{fancy}
+\fancyhead[L,C]{}
+\fancyhead[R]{STA 651}
+\fancyfoot[L]{}
+\fancyfoot[C]{}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0.5pt}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=blue,
+    filecolor=magenta,
+    urlcolor=blue,
+    pdftitle={STA 651 Executive Summary},
+    pdfauthor={Mingzhe Han et al.}
+}
+
+\title{\vspace{-28pt}\Large STA 651 Final Project\\[4pt]
+\textbf{Executive Summary}}
+\author{ Ziang Yang (zy234)}
+\date{4/19/2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+\vspace{-20pt}
+
+\section*{Problem}
+Our project studies a simple but hard planning task. We are given many small three-dimensional block pieces. Each piece contains three, four, or five unit cubes. The goal is to decide whether all given pieces can be assembled into one perfect larger cube with no overlaps and no empty spaces.
+
+This matters because the number of possible arrangements grows very quickly as the cube gets bigger. A method that looks fine on tiny examples can fail badly on larger hidden tests. For this assignment, we needed a solver that is both correct and stable: it should return a valid arrangement when one exists, return failure when none exists, and avoid getting stuck forever on a difficult case.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{outputs/figures/success_mixed_3_4_5_steps_strip.png}
+\caption{Six-step assembly sequence for \texttt{success\_mixed\_3\_4\_5} (MRV), read left-to-right and top-to-bottom.}
+\label{fig:success-mixed-steps}
+\end{figure}
+
+\section*{Approach}
+We built a step-by-step solver. At each step, it places one piece into the current partial cube, checks whether the new state is still valid, and immediately stops exploring that path if it is clearly impossible to finish. This ``try, check, reject early'' behavior is the core design.
+
+In our main runs we use the \texttt{mrv} mode. The key idea is simple: instead of filling cells in a fixed order, it first looks for the next empty position that has the fewest feasible piece placements. This tends to expose contradictions early, so the solver wastes less time exploring bad branches.
+
+The \texttt{mrv} mode also uses several early rejection rules. After each placement, it quickly checks whether each remaining piece still has at least one legal way to fit somewhere. If any remaining piece has no legal future move, that branch is abandoned right away.
+
+Another important check looks at leftover empty regions. If a remaining empty pocket is too small to hold any remaining piece, or its size pattern does not match what the remaining pieces can fill, the solver rejects that branch early instead of searching deeper.
+
+To keep runtime low, we added practical speedups. A key change is the bitmask representation: each candidate placement is pre-encoded once, and conflict checking is done with one bitwise AND operation. This replaces repeated cell-by-cell loops during search and gives a clear speed gain in larger cases. We also remember failed states, so if the same ``already-filled pattern + remaining piece mix'' appears again, the solver does not repeat the same failed search.
+
+We keep a second mode, \texttt{exact}, as a comparison solver. It treats every possible placement as a candidate and searches for one full set that covers the cube exactly once. In our project this mode is slower, but it is useful for method comparison and confidence checking.
+
+Before either mode starts, we run input validation: each piece must have allowed size, each piece must be connected, and total volume must match a perfect cube. For stable grading, we also use a per-case timeout (default 120 seconds), so one hard case cannot block the whole batch. When a solution exists, we can generate a piece-by-piece animation for manual inspection.
+
+\section*{Results}
+We evaluated the solver on a mixed benchmark set from very small examples up to large search cases, including cubes of size five, six, and seven. In the current recorded batch output dated April 19, 2026 (\texttt{outputs/all\_case\_results.csv}), we ran 14 cases total: 10 solved, 2 unsolved, and 2 correctly rejected as invalid inputs. No case hit the timeout limit in that batch.
+
+On larger valid cases, the default \texttt{mrv} mode remained practical: the five-by-five-by-five and seven-by-seven-by-seven search cases were solved in under one second and about four seconds respectively, and the six-by-six-by-six search case finished in under nine seconds. The \texttt{exact} mode remained useful as a comparison mode. A previously recorded seven-by-seven-by-seven run in the project log (\texttt{README.md}) reports about 92.565 seconds for \texttt{exact}, which is much slower than the current \texttt{mrv} run on that same case.
+
+\begin{table}[h]
+\centering
+\scriptsize
+\begin{tabular}{|p{4.3cm}|c|c|c|c|c|c|}
+\hline
+Case name & n & Piece count & Backend & Solved? & Runtime (s) & Timeout? \\
+\hline
+\texttt{easy\_2x2x2\_two\_4blocks} & 2 & 2 & mrv & Yes & 0.0001 & No \\
+\hline
+\texttt{hard\_4x4x4\_mixed\_4blocks} & 4 & 16 & mrv & Yes & 0.0153 & No \\
+\hline
+\texttt{search\_5x5x5\_mixed\_balanced\_a} & 5 & 28 & mrv & Yes & 0.5659 & No \\
+\hline
+\texttt{search\_6x6x6\_mixed\_balanced} & 6 & 51 & mrv & Yes & 8.83 & No \\
+\hline
+\texttt{search\_7x7x7\_mixed\_balanced} & 7 & 75 & mrv & Yes & 3.5722 & No \\
+\hline
+\end{tabular}
+\caption{Representative benchmark rows from \texttt{outputs/all\_case\_results.csv}.}
+\end{table}
+
+\section*{What We Learned}
+For this assignment scale, guided search with early rejection worked best. Just as important, careful input checking and timeout handling were critical for stable batch execution. In other words, correctness was not only about finding solutions; it was also about predictable behavior on bad inputs and hard cases.
+
+\section*{Future Work}
+The next step is richer test generation. We want broader stress tests that systematically vary piece mixtures and difficulty, so we can better map where each solving mode starts to struggle. This would make performance claims more complete and less dependent on a fixed small benchmark set.
+
+We also plan to improve speed further by adding stronger early checks and an optional multi-core mode. On the usability side, we plan to improve visualization and auto-generated summary reports so that each batch run directly produces clearer tables, figures, and grader-friendly logs.
+
+
+\end{document}

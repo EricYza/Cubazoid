@@ -1,0 +1,208 @@
+\documentclass[11pt]{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fontspec}
+\usepackage[shortlabels]{enumitem}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{longtable}
+\usepackage{matlab-prettifier}
+\usepackage{listings}
+\usepackage{minted}
+\usepackage[margin=0.80in]{geometry} 
+\usepackage{graphicx}
+\usepackage{subcaption}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    showstringspaces=false
+}
+
+\definecolor{commentgreen}{RGB}{0,128,0}
+\definecolor{codegreen}{RGB}{9,134,88}
+\definecolor{codepurple}{RGB}{175,0,219}
+\definecolor{codedarkblue}{RGB}{0,16,128}
+\definecolor{codelightblue}{RGB}{38,127,153}
+\definecolor{codebrown}{RGB}{163,21,21}
+\definecolor{backcolor}{rgb}{0.95,0.95,0.92}
+\lstdefinestyle{Pythonstyle}{
+    language=Python, 
+    backgroundcolor=\color{backcolor},
+    commentstyle=\color{commentgreen},
+    keywordstyle=\color{codepurple},
+    numberstyle=\tiny\color{codegreen},
+    stringstyle=\color{codebrown},
+    identifierstyle=\color{codedarkblue},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\usepackage[backend=biber,style=phys]{biblatex}
+\newcommand{\mingzhe}[1]{\textcolor{blue}{\textbf{MH:~}\textbf{#1}}}
+\newcommand{\Ziang}[1]{\textcolor{green}{\textbf{ZA:~}\textbf{#1}}}
+
+\addbibresource{reference.bib}
+
+\setmainfont{Times New Roman}
+\setmonofont[Scale=0.85]{Fira Code}
+
+\renewcommand{\arraystretch}{1.5}
+
+\newcommand{\nm}{\,\mathrm{nm}}
+\newcommand{\um}{\,\mathrm{\mu m}}
+\newcommand{\m}{\,\mathrm{m}}
+\newcommand{\K}{\mathcal{K}}
+
+
+
+\pagestyle{fancy}
+\fancyhead[L,C]{}
+\fancyhead[R]{STA 651}
+\fancyfoot[L]{}
+\fancyfoot[C]{}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0.5pt}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=blue,
+    filecolor=magenta,
+    urlcolor=blue,
+    pdftitle={STA 651 Executive Summary},
+    pdfauthor={Mingzhe Han et al.}
+}
+
+\title{\vspace{-28pt}\Large STA 651 Final Project\\[4pt]
+\textbf{FAQ}}
+\author{ Ziang Yang (zy234)}
+\date{4/19/2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+\vspace{-20pt}
+
+\section*{FAQ for a Skeptical Reader}
+\noindent The goal of this FAQ is to answer the questions a careful grader would naturally ask about correctness, algorithm design, runtime behavior, and reproducibility.
+
+\section*{A. Problem Definition}
+\begin{enumerate}[leftmargin=*,label=\textbf{Q\arabic*.},start=1]
+\item \textbf{What exactly is the input and output?}\\
+The input is a list of 3D binary tensors, one tensor per piece. Each nonzero voxel in a tensor represents one unit cube in that piece. The output is either a placement list that fills one $n \times n \times n$ cube, or \texttt{None} if no valid arrangement is produced.
+
+\item \textbf{What does ``returns null otherwise'' mean in your implementation?}\\
+In this codebase, ``null'' is Python \texttt{None}. We return \texttt{None} for three practical situations: invalid input detected up front, search failure (no arrangement found), or timeout under a fixed budget. The status fields in exported results are what separate these cases in reporting.
+
+\item \textbf{Do you always use all pieces, or can some be left unused?}\\
+All pieces must be used. A state is accepted only when there are no remaining pieces and every target cell is occupied. That design prevents partial-pack solutions from being counted as valid.
+
+\item \textbf{What counts as a valid piece in this project?}\\
+A valid piece must be non-empty, represented by a 3D tensor, connected in 6-neighbor sense, and have volume in the allowed range (3 to 5 cubes). Inputs that violate these rules are rejected before expensive search begins.
+\end{enumerate}
+
+\section*{B. Correctness and Trust}
+\begin{enumerate}[leftmargin=*,label=\textbf{Q\arabic*.},start=5]
+\item \textbf{How do you know the solution fills the entire cube and not only a shell?}\\
+The solver checks full occupancy at termination, not just geometric consistency of placed pieces. In other words, a candidate is accepted only if every voxel in the target cube is filled; hollow interiors fail this check automatically.
+
+\item \textbf{How do you prevent overlapping pieces?}\\
+Every candidate placement is pre-encoded as a bitmask. During search, overlap testing is done by bitwise intersection between occupied cells and placement mask; any nonzero intersection immediately rejects that move. This is both exact and faster than repeated cell-by-cell checks.
+
+\item \textbf{How do you ensure each piece is used exactly once?}\\
+Once a piece is selected on a branch, it is removed from the ``remaining pieces'' state for deeper recursion. That branch can never place the same piece again. At the same time, success requires no remaining pieces, so each piece is used exactly once in any returned solution.
+
+\item \textbf{What happens when the total piece volume is not a perfect cube?}\\
+The case is rejected immediately as infeasible, because no exact cube dimension \(n\) can satisfy \(n^3=\) total volume. This check runs before search, so impossible cases do not consume backtracking time.
+
+\item \textbf{What happens if a piece is disconnected?}\\
+Under the default strict setting, disconnected pieces are treated as invalid input and rejected. This avoids ambiguous modeling where one nominal ``piece'' effectively behaves like multiple independent components.
+
+\textit{Evidence:} these checks are implemented in \texttt{CubazoidSolver.\_\_init\_\_} and \texttt{\_is\_piece\_connected} in \texttt{cubazoid/solver.py}; corresponding invalid cases appear in \texttt{outputs/all\_case\_results.json}.
+\end{enumerate}
+
+\section*{C. Algorithm Choices}
+\begin{enumerate}[leftmargin=*,label=\textbf{Q\arabic*.},start=10]
+\item \textbf{Why include both \texttt{mrv} and \texttt{exact} backends?}\\
+They serve different purposes. \texttt{mrv} is the practical workhorse for faster solving on this benchmark set, while \texttt{exact} provides an explicit exact-cover/DLX route that is useful for methodological comparison and cross-checking.
+
+\item \textbf{Why is \texttt{mrv} the default?}\\
+Because it is consistently more efficient in this project's runtime regime, especially on larger search cases. The CLI therefore defaults to \texttt{--backend mrv} so batch runs finish reliably under grading constraints.
+
+\textit{Evidence:} backend selection is in \texttt{cubazoid/api.py}; default choice is in \texttt{cubazoid\_solver.py}; large-case timing contrast is documented in \texttt{README.md}.
+
+\item \textbf{What pruning ideas were most important?}\\
+The strongest practical gains came from forward checking, empty-component hole pruning, and failed-state memoization. Together they cut dead branches early and reduce repeated exploration of equivalent failing states.
+
+\item \textbf{Did you test alternative branching strategies (for example first-empty cell)?}\\
+Yes. We tested simpler branching choices such as expanding the first empty cell. On harder instances this was generally less stable than MRV-guided branching, so we kept MRV as the primary strategy.
+\end{enumerate}
+
+\section*{D. Performance and Limits}
+\begin{enumerate}[leftmargin=*,label=\textbf{Q\arabic*.},start=14]
+\item \textbf{How do you measure runtime fairly?}\\
+We keep backend and timeout fixed, run on the same machine/environment, and disable rendering with \texttt{--no-show}. For reporting, repeated trials with a median summary are preferred over a single run.
+
+\item \textbf{Why add per-case timeout, and what value do you use?}\\
+Timeout prevents one pathological case from blocking the whole batch. The default is 120 seconds per case (\texttt{--timeout-sec 120}), and this value is long enough for normal cases while still protecting full-batch reproducibility.
+
+\item \textbf{Which cases are hardest right now, and why?}\\
+Difficulty is instance-dependent, not purely determined by cube size. In the current recorded batch, some 6x6x6 instances take longer than 7x7x7 because the piece mix and branching structure create harder search trees.
+
+\item \textbf{What are known failure modes or limits?}\\
+The core limitation is exponential search growth. Even with pruning, certain piece combinations can trigger very large search trees, so outcomes may be ``unsolved'' or ``timed\_out'' under fixed runtime budgets.
+
+\textit{Evidence:} see runtime fields in \texttt{outputs/all\_case\_results.json}.
+\end{enumerate}
+
+\section*{E. Reproducibility}
+\begin{enumerate}[leftmargin=*,label=\textbf{Q\arabic*.},start=18]
+\item \textbf{How can someone reproduce your reported numbers exactly?}\\
+Use the same command, backend, and timeout, and keep visualization off. A canonical full-batch command is:
+\begin{verbatim}
+python cubazoid_solver.py --all --include-large --no-show --backend mrv --timeout-sec 120
+\end{verbatim}
+Then compare generated artifacts in \texttt{outputs/all\_case\_results.json} and \texttt{outputs/all\_case\_results.csv}.
+
+\item \textbf{Which commands should a grader run first?}\\
+A quick and transparent sequence is:
+\begin{verbatim}
+python cubazoid_solver.py --list-cases --include-large
+python cubazoid_solver.py --all --include-large --no-show --backend mrv --timeout-sec 120
+\end{verbatim}
+The first command verifies coverage; the second regenerates the core benchmark outputs.
+
+\item \textbf{What environment assumptions matter for reproducibility?}\\
+Python version, dependency versions (especially \texttt{numpy} and \texttt{matplotlib}), CPU performance, and visualization settings all affect runtime. For strict reproducibility, these assumptions should be documented with the results and kept fixed across comparisons.
+\end{enumerate}
+
+\section*{F. Deliverable Quality}
+\begin{enumerate}[leftmargin=*,label=\textbf{Q\arabic*.},start=21]
+\item \textbf{What does the visualization show, and how should it be interpreted?}\\
+The visualization shows a step-by-step assembly process, where each step adds one selected piece to the cube. It is mainly for interpretability and sanity checking; it helps readers see how a claimed solution is constructed.
+
+\item \textbf{What did you change after debugging or merge conflicts, and how did you re-validate?}\\
+After debugging, we re-ran the benchmark pipeline and regenerated output artifacts instead of reusing old logs. This ensures the reported tables and claims reflect the current code snapshot, not stale intermediate behavior.
+
+\item \textbf{If results vary run-to-run, how do you report them responsibly?}\\
+We report backend, timeout, machine context, and repeated-run summary (preferably median). We also separate status labels clearly (\texttt{solved}, \texttt{unsolved}, \texttt{invalid\_input}, \texttt{timed\_out}) so readers can distinguish algorithmic failure from budget limits.
+\end{enumerate}
+
+\end{document}

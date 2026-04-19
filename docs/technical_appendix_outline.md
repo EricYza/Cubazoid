@@ -1,9 +1,11 @@
 # Technical Appendix Outline (Reproducible)
 
-## 1) Repository Snapshot
+## 1) Repository Snapshot & Environment Lock
 - Commit hash used for all reported results.
 - File map (solver, api, examples, visualization, CLI entry).
 - Python version and required packages.
+- Dependency lock file(s) used (`requirements.txt` or `environment.yml`).
+- Exact install command(s) and the date environment was validated.
 
 ## 2) Problem Contract
 - Input format: list of 3D binary tensors.
@@ -54,6 +56,7 @@
   - each piece used once
   - invalid inputs rejected
 - Include script/notebook outputs or logs.
+- Independent verification script: command, input artifact, and expected pass/fail fields.
 
 ## 8) Ablation Notes
 - Before/after bitmask optimization.
@@ -72,6 +75,11 @@
 4. Run notebook demo.
 5. Compare outputs with reported tables.
 
+## 10.5) One-Command Reproduction
+- Provide one canonical command that reproduces the main reported batch.
+- List expected output file paths (e.g., CSV/JSON/GIF folders).
+- State expected status summary format (solved/unsolved/invalid/timeout).
+
 ## 11) Raw Data and Artifacts
 - Link locations for raw runtime logs.
 - Notebook path.
@@ -82,3 +90,7 @@
 - Potential algorithm upgrades.
 - Engineering improvements for robustness.
 
+## 13) Status Interpretation (Reporting Policy)
+- Define `invalid_input`, `unsolved`, and `timed_out` exactly as used in code/output.
+- Explain how each status should be reported in tables and narrative.
+- Clarify what conclusions are valid (and not valid) under timeout-limited runs.
