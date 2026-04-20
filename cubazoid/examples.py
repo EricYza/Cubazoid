@@ -202,7 +202,7 @@ def build_test_cases(include_large_search_cases: bool = False) -> Dict[str, List
             p["Pillar4"].copy(),
             p["Pillar4"].copy(),
         ],
-        "hard_4x4x4_mixed_3_5": [
+        "hard_4x4x4_mixed_3_5_fail": [
             p["I5"].copy(),
             p["L5"].copy(),
             p["P5"].copy(),
