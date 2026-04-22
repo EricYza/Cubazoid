@@ -1,3 +1,6 @@
+Team members: Ziang Yang (zy234), Xianghao Zheng (xz473), Yanhe Zhu (yz1054), Yuyao Tang (yt237)  
+Contribution: Equal contribution from all team members.
+
 # Cubazoid Solver
 
 This repository solves a 3D packing problem:
@@ -13,13 +16,29 @@ The project includes:
 
 ```text
 final project/
+├─ README.md                          # project overview and usage notes
 ├─ cubazoid_solver.py                 # CLI entrypoint
 ├─ environment.yml                    # Conda environment lock
 ├─ requirements.txt                   # Pinned Python package versions
 ├─ demo_cubazoid_repro.ipynb          # Repro + batch export + visualization notebook
+├─ Executive_Summary.pdf              # submission PDF copied to repo root
+├─ FAQ.pdf                            # submission PDF copied to repo root
+├─ technical_appendix.pdf             # submission PDF copied to repo root
 ├─ docs/
+│  ├─ executive_summary_outline.md
+│  ├─ faq_outline.md
+│  ├─ technical_appendix_outline.md
 │  └─ technical_appendix/
-│     └─ technical_appendix.ipynb     # Full technical appendix notebook
+│     ├─ technical_appendix.ipynb     # Full technical appendix notebook
+│     └─ assets/
+│        └─ problem_contract_piece_examples_3_4_5.png
+├─ tex/
+│  ├─ Executive_summary_main.tex
+│  └─ faq_main.tex
+├─ submit_pdf/
+│  ├─ Executive_Summary.pdf
+│  ├─ FAQ.pdf
+│  └─ technical_appendix.pdf
 ├─ cubazoid/
 │  ├─ __init__.py
 │  ├─ types.py                         # Coord / Placement dataclasses
@@ -73,16 +92,16 @@ python cubazoid_solver.py --list-cases --include-large
 Run one case with MRV:
 
 ```powershell
-python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --backend mrv --no-show --timeout-sec 120
+python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --backend mrv --timeout-sec 120
 ```
 
 Run one case with Exact backend:
 
 ```powershell
-python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --backend exact --no-show --timeout-sec 120
+python cubazoid_solver.py --case search_7x7x7_mixed_balanced --include-large --backend exact --timeout-sec 120
 ```
 
-Run all built-in cases:
+Run all built-in cases without visualization:
 
 ```powershell
 python cubazoid_solver.py --all --include-large --backend mrv --no-show --timeout-sec 120
