@@ -1,5 +1,12 @@
 Team members: Ziang Yang (zy234), Xianghao Zheng (xz473), Yanhe Zhu (yz1054), Yuyao Tang (yt237)  
-Contribution: Equal contribution from all team members.
+Contribution:
+
+| Team member | Contribution |
+| --- | --- |
+| Ziang Yang (zy234) | 30% |
+| Xianghao Zheng (xz473) | 10% |
+| Yanhe Zhu (yz1054) | 30% |
+| Yuyao Tang (yt237) | 30% |
 
 # Cubazoid Solver
 
